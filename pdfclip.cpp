@@ -73,20 +73,22 @@ void set_media_box(PDFDoc * doc, int page, PDFRectangle * rect)
 	    mk_box_array(rect->x1, rect->y1, rect->x2, rect->y2);
 	obj.dictSet((char *) "MediaBox", newArray);
 	entry->obj = obj;
+	entry->updated = gTrue;
 }
 
 int pdfcrop_page(PDFDoc *doc, Catalog *catalog, SplashOutputDev *dev, int i) {
 	PDFRectangle rect;
 	Page *page = catalog->getPage(i);
-	printf("page %d: ", i);
-	print_rect(page->getMediaBox());
-	printf("\n");
-
 	rect = measure_margin(doc, dev, i);
-	printf("crop: ");
-	print_rect(&rect);
-	printf("\n");
 	set_media_box(doc, i, &rect);
+
+	if(opt_debug){
+		printf("page=%d, box=[", i);
+		print_rect(page->getMediaBox());
+		printf("], crop=[");
+		print_rect(&rect);
+		printf("]\n");
+	}
 	return 0;
 }
 
@@ -133,7 +135,6 @@ int main(int argc, char *argv[])
 			break;
 		case 'p':
 			opt_page = atoi(optarg);
-			printf("page: %d\n", opt_page);
 			break;
 		case 'm':
 			break;
@@ -155,6 +156,7 @@ int main(int argc, char *argv[])
 		printf("Output File: %s\n", out_file->getCString());
 	}
 
+	//GooString *owner_pw = new GooString("");
 	PDFDoc *doc = new PDFDoc(in_file, NULL, NULL);
 	if (!doc->isOk()) {
 		perror("pdf open error");
@@ -163,28 +165,34 @@ int main(int argc, char *argv[])
 
 	int ret;
 	ret = pdfcrop(doc);
-	ret = doc->saveAs(out_file, writeForceRewrite);
+	if (ret) {
+		printf("crop failed: %d\n", ret);
+		return EXIT_FAILURE;
+	}
+
 	//ret = doc->saveAs(out_file, writeStandard);
+	ret = doc->saveAs(out_file, writeForceRewrite);
 	if (ret) {
 		printf("save failed: %d\n", ret);
 		return EXIT_FAILURE;
 	}
 
 	delete doc;
-	delete in_file;
-	delete out_file;
-	delete globalParams;
-
+	// double free?
+	//delete in_file;
+	//delete out_file;
+	// some times blocked.
+	//delete globalParams;
 	return EXIT_SUCCESS;
 }
 
 PDFRectangle measure_margin(PDFDoc * doc, SplashOutputDev * dev, int page)
 {
 	doc->displayPageSlice(dev, page, 72.0, 72.0,
-			      gFalse, gFalse, gFalse, gFalse, 0, 0, -1,
-			      -1);
+						  gFalse, gFalse, gFalse, gFalse, 0, 0, -1, -1);
 	SplashBitmap *bitmap = dev->getBitmap();
-	bitmap->writePNMFile((char*)"out.ppm");
+
+	//bitmap->writePNMFile((char*)"out.ppm");
 /*
 	printf("width: %d\n", bitmap->getWidth());
 	printf("height: %d\n", bitmap->getHeight());
@@ -201,13 +209,20 @@ PDFRectangle measure_margin(PDFDoc * doc, SplashOutputDev * dev, int page)
 
 	int x, y, i;
 	if(opt_oreilly){
+		// fill top
+		for (y = 0; y < 70; y++) {
+			for (x = 0; x < width; x++) {
+				i = y * width + x;
+				data[i] = 0;
+			}
+		}
+		// fill bottom
 		for (y = height - 1; y >= height - 20; y--) {
 			for (x = 0; x < width; x++) {
 				i = y * width + x;
 				data[i] = 0;
 			}
 		}
-		bitmap->writePNMFile((char*)"out.ppm");
 	}
 
 	for (y = 0; y < height; y++) {
