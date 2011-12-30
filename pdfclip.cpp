@@ -32,8 +32,9 @@ PDFRectangle measure_margin(PDFDoc *doc, SplashOutputDev *dev, int page);
 static int opt_debug = 0;
 static int opt_page = 0;
 static int opt_oreilly = 0;
+static PDFRectangle *opt_margin = NULL;
 
-void print_rect(PDFRectangle * rect)
+void print_rect(PDFRectangle *rect)
 {
 	printf("%g, %g, %g, %g", rect->x1, rect->y1, rect->x2, rect->y2);
 }
@@ -79,8 +80,13 @@ void set_media_box(PDFDoc * doc, int page, PDFRectangle * rect)
 int pdfcrop_page(PDFDoc *doc, Catalog *catalog, SplashOutputDev *dev, int i) {
 	PDFRectangle rect;
 	Page *page = catalog->getPage(i);
-	rect = measure_margin(doc, dev, i);
-	set_media_box(doc, i, &rect);
+
+	if(opt_margin){
+		set_media_box(doc, i, opt_margin);
+	}else{
+		rect = measure_margin(doc, dev, i);
+		set_media_box(doc, i, &rect);
+	}
 
 	if(opt_debug){
 		printf("page=%d, box=[", i);
@@ -124,6 +130,7 @@ int pdfcrop(PDFDoc *doc) {
 int main(int argc, char *argv[])
 {
 	int opt;
+	PDFRectangle rect;
 
 	while ((opt = getopt(argc, argv, "dop:m:")) != -1) {
 		switch (opt) {
@@ -137,6 +144,9 @@ int main(int argc, char *argv[])
 			opt_page = atoi(optarg);
 			break;
 		case 'm':
+			sscanf(optarg, "%lf %lf %lf %lf",
+				   &rect.x1, &rect.y1, &rect.x2, &rect.y2);
+			opt_margin = &rect;
 			break;
 		}
 	}
@@ -223,6 +233,7 @@ PDFRectangle measure_margin(PDFDoc * doc, SplashOutputDev * dev, int page)
 				data[i] = 0;
 			}
 		}
+		//bitmap->writePNMFile((char*)"out.ppm");
 	}
 
 	for (y = 0; y < height; y++) {
@@ -282,3 +293,12 @@ out_right:
 	rect.y2 = height - margin_top;
 	return rect;
 }
+
+/*
+ * Local Variables:
+ * tab-width: 4
+ * c-basic-offset: 4
+ * indent-tabs-mode: t
+ * End:
+ * vim: sw=4 ts=4 sts=4 et
+ */
